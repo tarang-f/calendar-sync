@@ -1,6 +1,6 @@
 # Calendar Sync — High-Level Plan
 
-**Version:** v5 · **Date:** 2026-11-07 · **Status:** Draft
+**Version:** v6 · **Date:** 2026-11-07 · **Status:** Draft
 
 ## 1. Summary
 
@@ -105,25 +105,31 @@ users/{uid}
   email, hubAccountId, hubCalendarId, windowPastDays=7, windowFutureDays=90, createdAt
   accounts/{accountId}      provider, subject, email, name, scopes[], encRefreshToken,
                             status(active|needs_reauth), connectedAt, updatedAt
-  calendars/{calendarId}    accountId, providerCalendarId, name, role(hub|spoke),
-                            cursor(syncToken|deltaLink), lastPolledAt, status
-  rules/{ruleId}            name, level(busy|title|title_location|full)
-  edges/{edgeId}            spokeCalendarId, ruleId, enabled, createdAt
+  calendars/{calendarId}    accountId, provider, providerCalendarId, name, color, role(hub|spoke),
+                            addedAt, cursor(syncToken|deltaLink)*, lastPolledAt*, status*
+                            (id = accountId~sha256(providerCalendarId)[0:16]; * added in Phase 3)
+  rules/{ruleId}            name, level(busy|title|title_location|full), createdAt, updatedAt
+  edges/{spokeCalendarId}   spokeCalendarId, ruleId|null, enabled, updatedAt   (one edge per spoke)
   links/{linkId}            origin{calendarId, eventId}, hubCopy{eventId, hash}?,
                             copies{ [calendarId]: {eventId, hash} }, updatedAt
   syncLog/{logId}           runAt, calendarId, created, updated, deleted, restored,
                             errors[], expiresAt (TTL 30 days)
 ```
 
-- **Security rules:** the client can read and write only its own config (`rules`, `edges`, calendar selection). Accounts, tokens, links and cursors are written by the server only.
+- **Access:** every read and write goes through server code (Admin SDK) after a session check, so Firestore security rules stay deny-all. There is no client Firestore access.
 
 ## 8. MVP screens
 
 - **Sign in:** Google or Microsoft (this connects the hub).
 - **Accounts:** connect or reconnect spoke accounts, and see each account's status.
 - **Calendars:** pick the hub calendar, and choose which calendars from each account are spokes.
-- **Rules:** create, rename and delete rules, and choose each rule's level.
-- **Edges:** assign a rule to each spoke, or turn the spoke off.
+  - The hub calendar must come from the sign-in (hub) account.
+  - Only writable calendars can be the hub or a spoke.
+  - A calendar can't be both hub and spoke.
+  - Choosing a new hub calendar replaces the old one.
+- **Rules:** create, rename and delete rules, and choose each rule's level. A rule can't be deleted while a spoke uses it.
+- **Sync (edges):** assign a rule to each spoke and turn sync on or off. Turning sync on needs a rule and a hub calendar.
+- **Removing a spoke, or disconnecting its account,** deletes its calendar selection and edge. Copies already created stay (§11).
 - **Sync log:** recent runs with counts and errors.
 
 ## 9. Delivery phases
@@ -132,7 +138,7 @@ users/{uid}
 |---|---|---|
 | 0. Setup | Firebase project (Blaze plan), GCP OAuth client, Azure app registration, KMS key ring, repo + CI, emulators. Code done; console steps in [SETUP.md](SETUP.md) | Deploys a hello-world app and function |
 | 1. Auth & accounts | OAuth code flows, custom-token sign-in, encrypted token storage, adding spoke accounts. **Code done**; verified locally with emulators and the mock OAuth provider, and needs a real-provider test after setup | User can sign in and connect a spoke on each provider |
-| 2. Config UI | Calendars, rules, edges screens + Firestore security rules | User can set up a full hub-and-spoke config |
+| 2. Config UI | Calendars, rules and sync (edges) screens. Access-token refresh, with rotation and re-auth detection. Calendar listing for both providers. **Code done**; verified locally with emulators and the mock OAuth provider | User can set up a full hub-and-spoke config |
 | 3. Hub → spokes | Provider adapters (a single interface over both APIs), projection by level, links, poller + task queue | Hub events appear on spokes at the correct level |
 | 4. Spokes → hub → spokes | Inbound mirroring, fan-out that skips the origin, copy restore, delete propagation | Full bidirectional sync with no loops |
 | 5. Hardening & beta | Rate limiting and backoff, re-auth handling, daily window job, sync log UI, monitoring and alerts | Private beta with a small group of users |

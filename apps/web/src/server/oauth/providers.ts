@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import { AuthError } from "./errors";
+import { AppError } from "../errors";
 
 export const PROVIDER_IDS = ["google", "microsoft"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -110,19 +110,19 @@ export async function exchangeCode(
       body,
     });
   } catch (e) {
-    throw new AuthError("token_exchange_failed", `token request failed: ${(e as Error).message}`);
+    throw new AppError("token_exchange_failed", `token request failed: ${(e as Error).message}`);
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    throw new AuthError("token_exchange_failed", `token endpoint ${res.status}: ${String(json.error ?? "")}`);
+    throw new AppError("token_exchange_failed", `token endpoint ${res.status}: ${String(json.error ?? "")}`);
   }
   const refreshToken = typeof json.refresh_token === "string" ? json.refresh_token : "";
-  if (!refreshToken) throw new AuthError("no_refresh_token");
+  if (!refreshToken) throw new AppError("no_refresh_token");
   if (typeof json.id_token !== "string" || typeof json.access_token !== "string") {
-    throw new AuthError("token_exchange_failed", "token response missing access_token or id_token");
+    throw new AppError("token_exchange_failed", "token response missing access_token or id_token");
   }
   const scopes = typeof json.scope === "string" ? json.scope.split(/\s+/).filter(Boolean) : [];
-  if (!hasScopes(scopes, spec.requiredScopes)) throw new AuthError("missing_scopes");
+  if (!hasScopes(scopes, spec.requiredScopes)) throw new AppError("missing_scopes");
 
   return {
     accessToken: json.access_token,
@@ -146,11 +146,11 @@ export function hasScopes(granted: string[], required: string[]): boolean {
  */
 export function decodeJwtPayload(jwt: string): Record<string, unknown> {
   const part = jwt.split(".")[1];
-  if (!part) throw new AuthError("invalid_identity", "malformed id_token");
+  if (!part) throw new AppError("invalid_identity", "malformed id_token");
   try {
     return JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
   } catch {
-    throw new AuthError("invalid_identity", "undecodable id_token");
+    throw new AppError("invalid_identity", "undecodable id_token");
   }
 }
 
@@ -167,6 +167,49 @@ export function identityFromClaims(provider: ProviderId, c: Record<string, unkno
   const subject =
     provider === "microsoft" ? (str("tid") && str("oid") ? `${str("tid")}.${str("oid")}` : str("sub")) : str("sub");
   const email = str("email") ?? (provider === "microsoft" ? str("preferred_username") : undefined);
-  if (!subject || !email) throw new AuthError("invalid_identity", "id_token missing subject or email");
+  if (!subject || !email) throw new AppError("invalid_identity", "id_token missing subject or email");
   return { provider, subject, email: email.toLowerCase(), name: str("name") };
+}
+
+export interface RefreshedToken {
+  accessToken: string;
+  expiresIn: number;
+  /** Present when the provider rotated the refresh token (Microsoft does). */
+  refreshToken?: string;
+}
+
+/** Exchanges a refresh token for a new access token. */
+export async function refreshAccessToken(
+  spec: ProviderSpec,
+  refreshToken: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<RefreshedToken> {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: spec.clientId,
+    client_secret: spec.clientSecret,
+  });
+  let res: Response;
+  try {
+    res = await fetchImpl(spec.tokenUrl, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body,
+    });
+  } catch (e) {
+    throw new AppError("provider_unavailable", `refresh request failed: ${(e as Error).message}`);
+  }
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    // invalid_grant = revoked, expired or password changed: the user must reconnect.
+    if (json.error === "invalid_grant" || res.status === 401) throw new AppError("needs_reauth", String(json.error ?? res.status));
+    throw new AppError("provider_unavailable", `token endpoint ${res.status}: ${String(json.error ?? "")}`);
+  }
+  if (typeof json.access_token !== "string") throw new AppError("provider_unavailable", "no access_token in refresh response");
+  return {
+    accessToken: json.access_token,
+    expiresIn: Number(json.expires_in ?? 3600),
+    refreshToken: typeof json.refresh_token === "string" && json.refresh_token ? json.refresh_token : undefined,
+  };
 }

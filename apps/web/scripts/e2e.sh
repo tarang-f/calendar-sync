@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and starts the web app against the Firebase emulators, then runs the auth e2e check.
+# Builds and starts the web app against the Firebase emulators, then runs the e2e check.
 # Run via: npx firebase-tools emulators:exec --project demo-calendar-sync --only auth,firestore "bash apps/web/scripts/e2e.sh"
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,4 +15,4 @@ LOG="${TMPDIR:-/tmp}/next-e2e.log"
 PID=$!
 trap 'kill $PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do curl -sf http://localhost:3000/api/health >/dev/null && break; sleep 1; done
-node scripts/e2e-auth.mjs || { echo "--- next log ---"; tail -50 "$LOG"; exit 1; }
+node scripts/e2e.mjs || { echo "--- next log ---"; tail -50 "$LOG"; exit 1; }

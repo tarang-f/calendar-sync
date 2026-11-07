@@ -1,5 +1,5 @@
 import type { DocumentData, Firestore, Timestamp } from "firebase-admin/firestore";
-import type { AccountRecord, AccountRepo, UserRecord } from "./types";
+import type { AccountRecord, AccountRepo, AccountStatus, UserRecord } from "./types";
 
 const toDate = (v: unknown): Date => (v instanceof Date ? v : (v as Timestamp).toDate());
 
@@ -36,7 +36,7 @@ export class FirestoreAccountRepo implements AccountRepo {
     const snap = await this.user(uid).get();
     if (!snap.exists) return null;
     const d = snap.data()!;
-    return { uid, email: d.email, hubAccountId: d.hubAccountId, createdAt: toDate(d.createdAt) };
+    return { uid, email: d.email, hubAccountId: d.hubAccountId, hubCalendarId: d.hubCalendarId ?? undefined, createdAt: toDate(d.createdAt) };
   }
 
   async upsertAccount(uid: string, a: AccountRecord): Promise<void> {
@@ -61,6 +61,14 @@ export class FirestoreAccountRepo implements AccountRepo {
 
   async deleteAccount(uid: string, accountId: string): Promise<void> {
     await this.accounts(uid).doc(accountId).delete();
+  }
+
+  async setAccountStatus(uid: string, accountId: string, status: AccountStatus, now: Date): Promise<void> {
+    await this.accounts(uid).doc(accountId).update({ status, updatedAt: now });
+  }
+
+  async updateRefreshToken(uid: string, accountId: string, encRefreshToken: string, now: Date): Promise<void> {
+    await this.accounts(uid).doc(accountId).update({ encRefreshToken, updatedAt: now });
   }
 }
 

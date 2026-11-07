@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/auth/callbac
     return res;
   }
 
-  const res = redirectTo(deps.config, "/accounts", { connected: result.accountId });
+  const res = redirectTo(deps.config, "/accounts", { ok: "connected" });
   res.cookies.delete(STATE_COOKIE);
   if (result.mode === "login") {
     try {

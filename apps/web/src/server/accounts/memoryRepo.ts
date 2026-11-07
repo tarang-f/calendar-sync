@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AccountRecord, AccountRepo, UserRecord } from "./types";
+import type { AccountRecord, AccountRepo, AccountStatus, UserRecord } from "./types";
 
 /** In-memory AccountRepo for unit tests. */
 export class MemoryAccountRepo implements AccountRepo {
@@ -32,5 +32,13 @@ export class MemoryAccountRepo implements AccountRepo {
   }
   async deleteAccount(uid: string, id: string) {
     this.accounts.get(uid)?.delete(id);
+  }
+  async setAccountStatus(uid: string, id: string, status: AccountStatus, now: Date) {
+    const a = this.accounts.get(uid)?.get(id);
+    if (a) Object.assign(a, { status, updatedAt: now });
+  }
+  async updateRefreshToken(uid: string, id: string, encRefreshToken: string, now: Date) {
+    const a = this.accounts.get(uid)?.get(id);
+    if (a) Object.assign(a, { encRefreshToken, updatedAt: now });
   }
 }

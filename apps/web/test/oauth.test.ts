@@ -9,7 +9,7 @@ import {
   providerSpec,
 } from "@/server/oauth/providers";
 import { decodeState, encodeState, STATE_TTL_MS } from "@/server/oauth/state";
-import { AuthError } from "@/server/oauth/errors";
+import { AppError } from "@/server/errors";
 import { testConfig } from "./helpers";
 
 const realCfg = testConfig({ OAUTH_MOCK: "0", GOOGLE_OAUTH_CLIENT_ID: "gid", GOOGLE_OAUTH_CLIENT_SECRET: "gsec", MICROSOFT_OAUTH_CLIENT_ID: "mid", MICROSOFT_OAUTH_CLIENT_SECRET: "msec" });
@@ -76,7 +76,7 @@ describe("token exchange", () => {
   });
 
   it("maps HTTP errors to token_exchange_failed", async () => {
-    await expect(exchangeCode(spec, p, reply(400, { error: "invalid_grant" }))).rejects.toBeInstanceOf(AuthError);
+    await expect(exchangeCode(spec, p, reply(400, { error: "invalid_grant" }))).rejects.toBeInstanceOf(AppError);
   });
 });
 
@@ -88,10 +88,10 @@ describe("identity", () => {
     expect(identityFromClaims("google", { sub: "123", email: "me@gmail.com" })).toMatchObject({ subject: "123", email: "me@gmail.com" });
   });
   it("rejects claims without an email", () => {
-    expect(() => identityFromClaims("google", { sub: "1" })).toThrow(AuthError);
+    expect(() => identityFromClaims("google", { sub: "1" })).toThrow(AppError);
   });
   it("rejects malformed JWTs", () => {
-    expect(() => decodeJwtPayload("nope")).toThrow(AuthError);
+    expect(() => decodeJwtPayload("nope")).toThrow(AppError);
   });
 });
 
