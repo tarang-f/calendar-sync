@@ -4,6 +4,7 @@ lib/
 *.log
 .env*
 !.env.example
+!.env.development
 .firebase/
 firebase-debug.log*
 firestore-debug.log*

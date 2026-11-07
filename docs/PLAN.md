@@ -1,6 +1,6 @@
 # Calendar Sync — High-Level Plan
 
-**Version:** v4 · **Date:** 2026-11-07 · **Status:** Draft
+**Version:** v5 · **Date:** 2026-11-07 · **Status:** Draft
 
 ## 1. Summary
 
@@ -51,10 +51,12 @@ A web app that keeps several calendars in sync in a hub-and-spoke layout. The **
 | Flow | How it works |
 |---|---|
 | App sign-in = hub connect | A server-side OAuth code flow (Google or Microsoft) requests calendar scopes and offline access. The callback (a Next.js route on App Hosting at `/api/auth/callback/{google|microsoft}`) stores the refresh token encrypted with KMS, then mints a **Firebase custom token** so the user is signed in. One step for the user. |
+| Session | Entirely server-side: custom token → ID token (Identity Toolkit REST) → Firebase **session cookie** `__session` (httpOnly, SameSite=Lax, 14 days). Sign-out revokes it everywhere. No Firebase client SDK is needed yet. |
+| Login identity | `logins/{accountId}` maps a hub account to its `uid`. Spoke accounts are never login identities. |
 | Connect a spoke | The same OAuth flow, linked to the signed-in user. Afterwards the user picks which calendars on that account become spokes. |
 | Google scopes | `openid email`, `calendar.events`, `calendar.calendarlist.readonly` |
 | Microsoft scopes | `openid email offline_access User.Read Calendars.ReadWrite` |
-| Token handling | Refresh tokens are encrypted with KMS and never sent to the client. On `invalid_grant` or a revoked token, the account is marked *needs re-auth* and its edges are paused. |
+| Token handling | Refresh tokens are encrypted with KMS, bound to `uid/accountId` as additional authenticated data so they can't be moved to another account, and never sent to the client. On `invalid_grant` or a revoked token, the account is marked *needs re-auth* and its edges are paused. |
 
 The hub can be either a Google or a Microsoft account.
 
@@ -98,9 +100,11 @@ The hub can be either a Google or a Microsoft account.
 ## 7. Data model (Firestore)
 
 ```
+logins/{accountId}          uid, createdAt                       (hub-login index)
 users/{uid}
-  hubCalendarId, windowPastDays=7, windowFutureDays=90, createdAt
-  accounts/{accountId}      provider, email, encRefreshToken, status(active|needs_reauth)
+  email, hubAccountId, hubCalendarId, windowPastDays=7, windowFutureDays=90, createdAt
+  accounts/{accountId}      provider, subject, email, name, scopes[], encRefreshToken,
+                            status(active|needs_reauth), connectedAt, updatedAt
   calendars/{calendarId}    accountId, providerCalendarId, name, role(hub|spoke),
                             cursor(syncToken|deltaLink), lastPolledAt, status
   rules/{ruleId}            name, level(busy|title|title_location|full)
@@ -127,7 +131,7 @@ users/{uid}
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | 0. Setup | Firebase project (Blaze plan), GCP OAuth client, Azure app registration, KMS key ring, repo + CI, emulators. Code done; console steps in [SETUP.md](SETUP.md) | Deploys a hello-world app and function |
-| 1. Auth & accounts | OAuth code flows, custom-token sign-in, encrypted token storage, adding spoke accounts | User can sign in and connect a spoke on each provider |
+| 1. Auth & accounts | OAuth code flows, custom-token sign-in, encrypted token storage, adding spoke accounts. **Code done**; verified locally with emulators and the mock OAuth provider, and needs a real-provider test after setup | User can sign in and connect a spoke on each provider |
 | 2. Config UI | Calendars, rules, edges screens + Firestore security rules | User can set up a full hub-and-spoke config |
 | 3. Hub → spokes | Provider adapters (a single interface over both APIs), projection by level, links, poller + task queue | Hub events appear on spokes at the correct level |
 | 4. Spokes → hub → spokes | Inbound mirroring, fan-out that skips the origin, copy restore, delete propagation | Full bidirectional sync with no loops |

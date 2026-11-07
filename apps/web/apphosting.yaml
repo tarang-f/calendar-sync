@@ -8,11 +8,35 @@ runConfig:
   memoryMiB: 512
 
 env:
-  # Secrets are added in Phase 1 (OAuth client IDs/secrets via Secret Manager), e.g.:
-  # - variable: GOOGLE_OAUTH_CLIENT_SECRET
-  #   secret: google-oauth-client-secret
-  - variable: NEXT_PUBLIC_APP_ENV
+  - variable: APP_ENV
     value: production
-    availability:
-      - BUILD
-      - RUNTIME
+    availability: [BUILD, RUNTIME]
+
+  # Public URL of this backend (the *.hosted.app domain or your custom domain).
+  - variable: APP_URL
+    value: https://REPLACE-WITH-APP-HOSTING-DOMAIN
+    availability: [RUNTIME]
+
+  # Firebase web API key (public, not a secret): Project settings → General → Web API key.
+  - variable: FIREBASE_API_KEY
+    value: REPLACE-WITH-FIREBASE-WEB-API-KEY
+    availability: [RUNTIME]
+
+  # Printed at the end of scripts/setup-gcp.sh.
+  - variable: KMS_KEY_NAME
+    value: projects/REPLACE-PROJECT-ID/locations/us-central1/keyRings/calendar-sync/cryptoKeys/oauth-tokens
+    availability: [RUNTIME]
+
+  # Secret Manager secrets created by scripts/setup-gcp.sh (values added in SETUP.md step 5).
+  - variable: GOOGLE_OAUTH_CLIENT_ID
+    secret: google-oauth-client-id
+    availability: [RUNTIME]
+  - variable: GOOGLE_OAUTH_CLIENT_SECRET
+    secret: google-oauth-client-secret
+    availability: [RUNTIME]
+  - variable: MICROSOFT_OAUTH_CLIENT_ID
+    secret: microsoft-oauth-client-id
+    availability: [RUNTIME]
+  - variable: MICROSOFT_OAUTH_CLIENT_SECRET
+    secret: microsoft-oauth-client-secret
+    availability: [RUNTIME]

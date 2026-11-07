@@ -1,6 +1,6 @@
 # Phase 0 Setup Guide
 
-**Version:** v1 · **Date:** 2026-11-07
+**Version:** v2 · **Date:** 2026-11-07
 
 The code is already in the repo. These are the one-time steps you do in the Google, Firebase and Microsoft consoles. Run the shell commands in **Google Cloud Shell**, or on any machine with `gcloud` and Node 22 installed.
 
@@ -92,6 +92,26 @@ In the Firebase console, go to **Build → App Hosting → Get started**:
 3. **Live branch:** `main`. Every push to `main` deploys automatically.
 4. **Region:** use the same region as the functions (for example `us-central1`).
 5. Once the backend is created, add its `*.hosted.app` domain to the redirect URIs from steps 3 and 4.
+6. Fill in the `REPLACE-…` values in `apps/web/apphosting.yaml`, then commit:
+   - `APP_URL`: the backend's URL.
+   - `FIREBASE_API_KEY`: in **Project settings → General → Web API key**. It's public, not a secret.
+   - `KMS_KEY_NAME`: printed at the end of `setup-gcp.sh`.
+7. Give the backend's service account access to what sign-in needs:
+
+```bash
+BACKEND=<backend-id>   # shown in the App Hosting console
+npx firebase-tools@15.35.0 apphosting:secrets:grantaccess \
+  google-oauth-client-id,google-oauth-client-secret,microsoft-oauth-client-id,microsoft-oauth-client-secret \
+  --backend "$BACKEND" --project "$PROJECT_ID"
+
+APPHOSTING_SA="firebase-app-hosting-compute@${PROJECT_ID}.iam.gserviceaccount.com"
+# Encrypt and decrypt refresh tokens
+gcloud kms keys add-iam-policy-binding oauth-tokens --keyring=calendar-sync --location=us-central1 \
+  --member="serviceAccount:${APPHOSTING_SA}" --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
+# Sign Firebase custom tokens (used to create sign-in sessions)
+gcloud iam service-accounts add-iam-policy-binding "$APPHOSTING_SA" \
+  --member="serviceAccount:${APPHOSTING_SA}" --role=roles/iam.serviceAccountTokenCreator
+```
 
 To check it worked, open `https://<app-hosting-domain>/api/health`. It should return `{"status":"ok",...}`.
 
@@ -143,6 +163,13 @@ npm run dev:web       # Next.js at http://localhost:3000
 ```
 
 The emulators use the offline `demo-calendar-sync` project, so they don't need cloud credentials.
+
+Sign-in works locally with no Google or Microsoft setup. `apps/web/.env.development` turns on a **mock OAuth provider**: click **Sign in with Google**, type any email, then click **Allow**. To use the real providers locally, copy `apps/web/.env.example` to `apps/web/.env.development.local` and fill in your client IDs.
+
+| Command | What it checks |
+|---|---|
+| `npm test` | Unit tests (functions + web) |
+| `npm run e2e` | Full sign-in → connect → disconnect → sign-out flow, run against the emulators |
 
 ## Phase 0 exit criteria
 
