@@ -1,6 +1,6 @@
 # Calendar Sync — High-Level Plan
 
-**Version:** v2 · **Date:** 2026-11-07 · **Status:** Draft
+**Version:** v3 · **Date:** 2026-11-07 · **Status:** Draft
 
 ## 1. Summary
 
@@ -13,10 +13,11 @@ A web app that keeps several calendars in sync in a hub-and-spoke layout. The **
 | Sync direction | Bidirectional. Spoke events flow into the hub, then out to the other spokes. |
 | Inbound to hub | Always full detail. Rules apply only to outbound edges. |
 | Rule model | Preset levels: Busy only, Title only, Title + location, Full details. |
-| Edits to copies | Copies are read-only. The app restores any changed or deleted copy on the next sync. |
-| Latency | Polling every 5–15 min (default 10). |
+| Edits to copies | All copies, including hub copies of spoke events, are read-only. The app restores any changed or deleted copy on the next sync. |
+| Latency | Polling every 10 min, one global interval for the MVP. |
 | Providers | Google Calendar API and Microsoft Graph (M365 + Outlook.com). No on-prem EWS. |
 | Audience | Multi-tenant design, private beta first, public SaaS later. |
+| Hub provider | Google or Microsoft, chosen at sign-in. |
 | Topology | One hub per user. Each spoke account can have many calendars, and each calendar is one edge. |
 | Sync window | Rolling: 7 days back to 90 days ahead. Recurring events are expanded into instances. |
 | Attendees | Never invited on copies. Names go in the description only at Full details. |
@@ -145,12 +146,12 @@ users/{uid}
 | Leaked tokens | Encrypt with KMS, access tokens only from server-side code, request minimal scopes, write an audit log. |
 | Polling cost as the user count grows | Move to webhooks in Phase 6 (§12). Poll less often for idle calendars. |
 
-## 11. Assumptions to confirm
+## 11. Confirmed assumptions
 
-- **Hub provider:** the hub may be Google or Microsoft, chosen at sign-in.
+- **Hub provider:** the hub can be Google or Microsoft, chosen at sign-in.
 - **Poll interval:** a single global 10-minute interval for the MVP.
-- **Copies on the hub:** copies of spoke events are read-only too, so edits must be made on the origin spoke.
-- **Removing an edge:** it only stops future syncing, and existing copies stay.
+- **Copies on the hub:** copies of spoke events on the hub are read-only, so edits are made on the origin spoke.
+- **Removing an edge or spoke:** existing copies become orphans that the app no longer updates or deletes. The user cleans them up by hand.
 
 ## 12. Future: real-time sync with webhooks (Phase 6)
 
