@@ -1,0 +1,18 @@
+# Firebase App Hosting config for the Next.js app.
+# In the console, create the backend with root directory: apps/web
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # Secrets are added in Phase 1 (OAuth client IDs/secrets via Secret Manager), e.g.:
+  # - variable: GOOGLE_OAUTH_CLIENT_SECRET
+  #   secret: google-oauth-client-secret
+  - variable: NEXT_PUBLIC_APP_ENV
+    value: production
+    availability:
+      - BUILD
+      - RUNTIME

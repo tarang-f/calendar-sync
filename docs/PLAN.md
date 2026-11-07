@@ -1,6 +1,6 @@
 # Calendar Sync — High-Level Plan
 
-**Version:** v3 · **Date:** 2026-11-07 · **Status:** Draft
+**Version:** v4 · **Date:** 2026-11-07 · **Status:** Draft
 
 ## 1. Summary
 
@@ -29,7 +29,7 @@ A web app that keeps several calendars in sync in a hub-and-spoke layout. The **
 
 ```
             ┌──────────────────────────── Firebase / GCP ─────────────────────────────┐
- Browser ──▶│ App Hosting (Next.js UI)  ──▶  Cloud Functions (HTTPS API, OAuth cb)    │
+ Browser ──▶│ App Hosting (Next.js UI + OAuth cb)  ──▶  Cloud Functions (API)         │
             │                                     │                                   │
             │  Cloud Scheduler ─▶ onSchedule "poller" (every 10 min)                  │
             │                                     │ enqueue 1 task per user           │
@@ -50,7 +50,7 @@ A web app that keeps several calendars in sync in a hub-and-spoke layout. The **
 
 | Flow | How it works |
 |---|---|
-| App sign-in = hub connect | A server-side OAuth code flow (Google or Microsoft) requests calendar scopes and offline access. The callback stores the refresh token encrypted with KMS, then mints a **Firebase custom token** so the user is signed in. One step for the user. |
+| App sign-in = hub connect | A server-side OAuth code flow (Google or Microsoft) requests calendar scopes and offline access. The callback (a Next.js route on App Hosting at `/api/auth/callback/{google|microsoft}`) stores the refresh token encrypted with KMS, then mints a **Firebase custom token** so the user is signed in. One step for the user. |
 | Connect a spoke | The same OAuth flow, linked to the signed-in user. Afterwards the user picks which calendars on that account become spokes. |
 | Google scopes | `openid email`, `calendar.events`, `calendar.calendarlist.readonly` |
 | Microsoft scopes | `openid email offline_access User.Read Calendars.ReadWrite` |
@@ -126,7 +126,7 @@ users/{uid}
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| 0. Setup | Firebase project (Blaze plan), GCP OAuth client, Azure app registration, KMS key ring, repo + CI, emulators | Deploys a hello-world app and function |
+| 0. Setup | Firebase project (Blaze plan), GCP OAuth client, Azure app registration, KMS key ring, repo + CI, emulators. Code done; console steps in [SETUP.md](SETUP.md) | Deploys a hello-world app and function |
 | 1. Auth & accounts | OAuth code flows, custom-token sign-in, encrypted token storage, adding spoke accounts | User can sign in and connect a spoke on each provider |
 | 2. Config UI | Calendars, rules, edges screens + Firestore security rules | User can set up a full hub-and-spoke config |
 | 3. Hub → spokes | Provider adapters (a single interface over both APIs), projection by level, links, poller + task queue | Hub events appear on spokes at the correct level |
