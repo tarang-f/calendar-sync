@@ -6,6 +6,8 @@ export interface UserRecord {
   uid: string;
   email: string;
   hubAccountId: string;
+  /** Set once the user picks a hub calendar (Phase 2). */
+  hubCalendarId?: string;
   createdAt: Date;
 }
 
@@ -34,7 +36,12 @@ export interface AccountRepo {
   getAccount(uid: string, accountId: string): Promise<AccountRecord | null>;
   listAccounts(uid: string): Promise<AccountRecord[]>;
   deleteAccount(uid: string, accountId: string): Promise<void>;
+  setAccountStatus(uid: string, accountId: string, status: AccountStatus, now: Date): Promise<void>;
+  updateRefreshToken(uid: string, accountId: string, encRefreshToken: string, now: Date): Promise<void>;
 }
+
+/** Binds an encrypted refresh token to its owner (AES-GCM / KMS additional authenticated data). */
+export const tokenAad = (uid: string, accountId: string) => `${uid}/${accountId}`;
 
 /** Deterministic, Firestore-safe document id for a provider account. */
 export function accountIdFor(provider: ProviderId, subject: string): string {

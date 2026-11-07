@@ -1,32 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { completeAuth, disconnectAccount, startAuth, tokenAad } from "@/server/auth/flow";
 import { issueMockCode } from "@/server/oauth/mock";
-import { codeChallengeS256 } from "@/server/oauth/pkce";
-import { decodeState } from "@/server/oauth/state";
-import type { ProviderId } from "@/server/oauth/providers";
-import { makeDeps } from "./helpers";
-
-/** Runs start → (mock consent) → callback, like a browser would. */
-async function signIn(
-  deps: ReturnType<typeof makeDeps>,
-  provider: ProviderId,
-  email: string,
-  mode: "login" | "connect",
-  sessionUid: string | null = null,
-) {
-  const { redirectUrl, stateCookie } = startAuth(deps, provider, mode);
-  const auth = new URL(redirectUrl).searchParams;
-  const st = decodeState(stateCookie, deps.now!())!;
-  expect(auth.get("code_challenge")).toBe(codeChallengeS256(st.codeVerifier));
-  const code = issueMockCode({
-    provider,
-    email,
-    scope: auth.get("scope")!,
-    codeChallenge: auth.get("code_challenge")!,
-    redirectUri: auth.get("redirect_uri")!,
-  });
-  return completeAuth(deps, { provider, query: new URLSearchParams({ code, state: auth.get("state")! }), stateCookie, sessionUid });
-}
+import { makeDeps, signIn } from "./helpers";
 
 describe("auth flow", () => {
   it("first login creates a user whose hub is the login account", async () => {
@@ -39,7 +14,7 @@ describe("auth flow", () => {
     const acct = await deps.repo.getAccount(r.uid, r.accountId);
     expect(acct?.email).toBe("me@gmail.com");
     expect(acct?.encRefreshToken).not.toContain("mock-refresh");
-    expect(await deps.cipher.decrypt(acct!.encRefreshToken, tokenAad(r.uid, r.accountId))).toMatch(/^mock-refresh-/);
+    expect(await deps.cipher.decrypt(acct!.encRefreshToken, tokenAad(r.uid, r.accountId))).toMatch(/^mock-refresh\./);
   });
 
   it("second login returns the same user", async () => {

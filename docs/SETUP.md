@@ -1,6 +1,6 @@
 # Phase 0 Setup Guide
 
-**Version:** v2 · **Date:** 2026-11-07
+**Version:** v3 · **Date:** 2026-11-07
 
 The code is already in the repo. These are the one-time steps you do in the Google, Firebase and Microsoft consoles. Run the shell commands in **Google Cloud Shell**, or on any machine with `gcloud` and Node 22 installed.
 
@@ -169,7 +169,7 @@ Sign-in works locally with no Google or Microsoft setup. `apps/web/.env.developm
 | Command | What it checks |
 |---|---|
 | `npm test` | Unit tests (functions + web) |
-| `npm run e2e` | Full sign-in → connect → disconnect → sign-out flow, run against the emulators |
+| `npm run e2e` | Full flow against the emulators: sign in, connect accounts, choose calendars, create and assign rules, disconnect, sign out |
 
 ## Phase 0 exit criteria
 
