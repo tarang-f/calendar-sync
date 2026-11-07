@@ -1,6 +1,6 @@
 # Calendar Sync — High-Level Plan
 
-**Version:** v1 · **Date:** 2026-11-07 · **Status:** Draft
+**Version:** v2 · **Date:** 2026-11-07 · **Status:** Draft
 
 ## 1. Summary
 
@@ -131,7 +131,8 @@ users/{uid}
 | 3. Hub → spokes | Provider adapters (a single interface over both APIs), projection by level, links, poller + task queue | Hub events appear on spokes at the correct level |
 | 4. Spokes → hub → spokes | Inbound mirroring, fan-out that skips the origin, copy restore, delete propagation | Full bidirectional sync with no loops |
 | 5. Hardening & beta | Rate limiting and backoff, re-auth handling, daily window job, sync log UI, monitoring and alerts | Private beta with a small group of users |
-| Later | Push webhooks (Google watch / Graph subscriptions), dashboard and "sync now", Stripe billing, Google/Microsoft app verification | Public SaaS launch |
+| 6. Real-time sync (post-MVP) | Webhooks per §12; polling becomes a backup | Changes show up in under a minute |
+| Later | Dashboard and "sync now", Stripe billing, Google/Microsoft app verification | Public SaaS launch |
 
 ## 10. Risks
 
@@ -142,7 +143,7 @@ users/{uid}
 | Duplicate copies after a crash part-way through a write | Write the link before creating the event, and use an idempotency key in the event's marker. |
 | Recurring-event quirks between providers | Expand events into instances inside the window and never sync whole series. |
 | Leaked tokens | Encrypt with KMS, access tokens only from server-side code, request minimal scopes, write an audit log. |
-| Polling cost as the user count grows | Move to push notifications in a later phase. Poll less often for idle calendars. |
+| Polling cost as the user count grows | Move to webhooks in Phase 6 (§12). Poll less often for idle calendars. |
 
 ## 11. Assumptions to confirm
 
@@ -150,3 +151,27 @@ users/{uid}
 - **Poll interval:** a single global 10-minute interval for the MVP.
 - **Copies on the hub:** copies of spoke events are read-only too, so edits must be made on the origin spoke.
 - **Removing an edge:** it only stops future syncing, and existing copies stay.
+
+## 12. Future: real-time sync with webhooks (Phase 6)
+
+The engine stays the same: it still fetches changes with `syncToken` / `deltaLink`. Only the trigger changes, from a timer to a change notification.
+
+| Area | MVP (polling) | Phase 6 (webhooks) |
+|---|---|---|
+| Trigger | `onSchedule` every 10 min | Google `events.watch` / Graph subscription notification |
+| Unit of work | One task per user | One task per changed calendar, with a per-user lock |
+| Latency | 5–15 min | Seconds to about 1 min |
+| Endpoints | None | `onRequest` `/webhooks/google` and `/webhooks/graph` |
+| Polling | Main mechanism | Backup every ~6 h |
+| Data | — | New `users/{uid}/subscriptions/{id}`: calendarId, provider, channelId/subscriptionId, resourceId, expiresAt, secret |
+
+New pieces:
+- **Endpoints:** check the `X-Goog-Channel-Token` header (Google) or `clientState` (Graph), echo Graph's `validationToken`, reply with 2xx quickly, and enqueue the sync job.
+- **Subscription lifecycle:** subscribe when a calendar is connected and unsubscribe when it is removed. A daily job renews subscriptions before expiry: Graph is extended with PATCH (max ~7 days); Google channels are replaced with new ones and the old channel stopped.
+- **Graph lifecycle events:** handle `missed`, `reauthorizationRequired` and `subscriptionRemoved`.
+- **Debounce:** delay each calendar's task by 5–10 s and use a named task to drop duplicates.
+- **Per-user lock:** a lease in Firestore, so the hub and spoke passes never run at the same time.
+- **Echo of our own writes:** copy writes trigger notifications that come back to us. The copy tags and `contentHash` turn these into no-ops.
+- **Hosting:** a stable HTTPS URL (custom domain recommended), with `minInstances=1` on the webhook functions to avoid cold starts.
+
+Estimated effort: about 1–2 weeks once Phase 4 is stable.
