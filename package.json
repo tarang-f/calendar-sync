@@ -1,0 +1,14 @@
+{
+  "name": "calendar-sync",
+  "private": true,
+  "scripts": {
+    "install:all": "npm ci --prefix functions && npm ci --prefix apps/web",
+    "build": "npm run build --prefix functions && npm run build --prefix apps/web",
+    "test": "npm test --prefix functions && npm test --prefix apps/web",
+    "e2e": "npx --yes firebase-tools@15.35.0 emulators:exec --project demo-calendar-sync --only auth,firestore \"bash apps/web/scripts/e2e.sh\"",
+    "lint": "npm run lint --prefix apps/web",
+    "typecheck": "npm run typecheck --prefix functions && npm run typecheck --prefix apps/web",
+    "dev:web": "npm run dev --prefix apps/web",
+    "emulators": "npm run build --prefix functions && npx --yes firebase-tools@15.35.0 emulators:start --project demo-calendar-sync"
+  }
+}
